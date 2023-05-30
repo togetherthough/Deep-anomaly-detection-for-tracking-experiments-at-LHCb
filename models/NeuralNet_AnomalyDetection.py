@@ -1,0 +1,222 @@
+import tensorflow as tf
+import numpy as np
+import tensorflow as tf
+from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report, confusion_matrix
+
+
+class NeuralNet_AnomalyDetection(tf.keras.Model):
+
+    """
+
+    This serves as a baseline class for the neural networks 
+    developed in the study. The class contains the implementation 
+    for some method agnostic functions, mostly related to thresholding 
+    and scoring of the model. The class itself inherits from keras.Model
+    such that all the child class will also inherit attributes
+    and behaviours from it. Its children classes are "NeuralNet_AnomalyDetection_Reconstruction"
+    that defines a more detailed base class for the AutoEncoder based anomaly detection methods
+    here studied and "ALAD" that is instead a GAN based anomaly detection based method that 
+    overrides some of the methods here declared with some class specific beahiviours. 
+
+    """
+
+    def __init__(self):
+        super(NeuralNet_AnomalyDetection, self).__init__()
+
+    def find_threshold_deviations(self, x_val, deviations, y_val=None):
+        """"
+        This method finds the threshold for anomaly detection as
+        function of the mean and standard residual between reconstructed training data
+        and the training data itself.
+
+        Args:
+            x_val:a sample that has not been used for training and that's not the testing set,
+            if we use x_train we expect that the method already knows to well its distribution
+            while we expect not to know the target value of the x_test sample 
+
+            deviations: the number of deviations to be considered
+
+        Returns:
+            The threshold for anomaly detection.
+
+        """
+
+        # make some predictions, those can be
+        # the reconstructed data or an anomaly score
+        predictions = self.predict(x_val)
+
+        # as a function of the predictions and the number of deviations
+        # of those find a threshold that will separate anomalies from normal instances
+        threshold = 0
+
+        return threshold
+
+    def find_treshold_percentile(self, x_val, percentile, y_val=None):
+        """"
+        This method finds the threshold for anomaly detection as
+        a percetile of the residual between reconstructed training data and
+        the training data itself.
+
+        Args:
+            x_val:a sample that has not been used for training and that's not the testing set,
+            if we use x_train we expect that the method already knows to well its distribution
+            while we expect not to know the target value of the x_test sample 
+
+        Returns:
+            The threshold for anomaly detection.
+
+        """
+        # make some predictions, those can be
+        # the reconstructed data or an anomaly score
+        predictions = self.predict(x_val)
+
+        # as a function of the predictions and the percentile
+        # of those find a threshold that will separate anomalies from normal instances
+        threshold = 0
+
+        return threshold
+
+    def find_anomalies(self, x_test=None, threshold=None):
+        """"
+        This method makes predicitons in the forms of 1 or 0,
+        if an instance is considered to be an anomaly its
+        value will be 1, if is a normal instace its value will be 0.
+        Whenever the determinant value (reconstruction error,
+        anomaly score...etc) for one instance is bigger than the
+        threshold that is classified as an anomaly, else as normal data.
+
+        Args:
+            x_test: the sample of features kept for validation
+            threshold: the threshold used to classify new instances as anomaly or not
+
+        Returns:
+            This method returns a list containg 1 for anomalies and 0 for normal instances
+
+        """
+        print("These are the anomalies...")
+
+        return 0
+
+    def print_classification_metrics(self, y_true, y_pred):
+        """
+        This method makes a report with the most relevant classification performance metrics.
+
+        Args:
+
+            y_true: the actual target values
+            y_pred: the predicted target values
+
+        """
+        accuracy = accuracy_score(y_true, y_pred)
+        precision = precision_score(y_true, y_pred)
+        recall = recall_score(y_true, y_pred)
+        f1 = f1_score(y_true, y_pred)
+        report = classification_report(y_true, y_pred)
+
+        print(f"Accuracy: {accuracy:.4f}")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall: {recall:.4f}")
+        print(f"F1-Score: {f1:.4f}")
+        print("Classification Report:")
+        print(report)
+
+    def get_confusion_matrix(self, y_true, y_pred):
+        """"
+        This method prints the confusion matrix that is practically 
+        a summary of the true positives, false positives,
+        true negatives and false negatives generated by the 
+        prediction method.
+
+        """
+
+        matrix = confusion_matrix(y_true, y_pred)
+
+        print("Confusion Matrix:")
+        print(matrix)
+
+    def find_best_percentile_threshold(self, x_train, x_test, y_test):
+        """"
+        This method finds the best threshold for anomaly detection as
+        a percetile of the residual between reconstructed training data and
+        the training data itself. The metric used to score what threshold is the best is accuracy.
+
+
+        Args:
+            x_train: the sample of features used for training
+            x_test: the sample of features used for testing
+            y_test: the sample of target values kept for testing
+
+
+        Returns:
+            The best threshold that could be found using the percentile method.
+
+        """
+        # determining a set of suitable values to use
+        # as percentiles for the "find_threshold_percentile" method (1-100 range)
+        thresholds = list(range(100))
+        best_threshold = None
+        best_score = 0.0
+
+        for threshold in thresholds:
+            threshold = self.find_treshold_percentile(x_train, threshold)
+            predictions = self.find_anomalies(x_test, threshold)
+
+            # this is the metric to be maximized
+            # (the choice is not random, since
+            # given high class imbalance choosing accuracy
+            # for ex. would not be suited for an anomaly detection task)
+            fpr, tpr, _ = roc_curve(y_test, predictions)
+            score = auc(fpr, tpr)
+
+            # if the AUC score given by current threshold
+            # is the best so far, return currrent threshold
+            # as the final one to use for anomaly detection
+            if score > best_score:
+                best_score = score
+                best_threshold = threshold
+
+        return best_threshold
+
+    def find_best_deviations_threshold(self, x_train, x_test, y_test):
+        """"
+        This method finds the best threshold for anomaly detection as
+        a function of the mean and standard error  between reconstructed training data and
+        the training data itself.
+        The metric used to score what threshold is the best is accuracy.
+
+
+        Args:
+            x_train: the sample of features used for training
+            x_test: the sample of features used for testing
+            y_test: the sample of target values kept for testing
+
+
+        Returns:
+            The best threshold that could be found using the deviations method.
+
+        """
+        # determining a set of suitable values to use
+        # as multipliers of the std in the "find_threshold_deviations" method
+        thresholds = np.linspace(0.1, 3.0, num=30)
+        best_threshold = None
+        best_score = 0.0
+
+        for threshold in thresholds:
+            # for the desired threshold determine which are the anomalous
+            # instances in the testing set
+            threshold = self.find_threshold_deviations(x_train, threshold)
+            predictions = self.find_anomalies(x_test, threshold)
+
+            # this is the metric to be maximized
+            fpr, tpr, _ = roc_curve(y_test, predictions)
+            score = auc(fpr, tpr)
+
+            # if the AUC score given by current threshold
+            # is the best so far, return currrent threshold
+            # as the final one to use for anomaly detection
+            if score > best_score:
+                best_score = score
+                best_threshold = threshold
+
+        return best_threshold

@@ -1,0 +1,4 @@
+models filter=lfs diff=lfs merge=lfs -text
+data filter=lfs diff=lfs merge=lfs -text
+creditcard.csv filter=lfs diff=lfs merge=lfs -text
+SimData.csv filter=lfs diff=lfs merge=lfs -text
