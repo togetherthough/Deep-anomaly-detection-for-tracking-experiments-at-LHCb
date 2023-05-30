@@ -49,6 +49,31 @@ class DiscriminatorXZ(tf.keras.Model):
         output = self.output_layer(concatenated)
         return output
 
+class DiscriminatorZZ(tf.keras.Model):
+    def __init__(self):
+        super(DiscriminatorZZ, self).__init__()
+        # I'M NOT SURE THE CONCATENATE SHOULD BE WHERE IT IS NOW
+
+        self.dense_z1 = SpectralNormalization(tf.keras.layers.Dense(256, activation='relu'))
+        self.dense_z2 = SpectralNormalization(tf.keras.layers.Dense(256, activation='relu'))
+        self.concat = tf.keras.layers.Concatenate()
+        self.output_layer = SpectralNormalization(tf.keras.layers.Dense(1, activation='sigmoid'))
+
+    def call(self, inputs):
+        """"
+        The network takes as input both the 
+        real data and the fake one
+
+        Args:
+            inputs: tuple made of real and fake data
+        """
+        
+        z_1, z_2 = inputs       
+        z1out = self.dense_z1(z_1)        
+        z2out = self.dense_z2(z_2)       
+        concatenated = self.concat([z1out, z2out])      
+        output = self.output_layer(concatenated)
+        return output
 
 class ALAD(NeuralNet_AnomalyDetection):
     def __init__(self, input_dim, latent_dim, learning_rate):
@@ -106,28 +131,25 @@ class ALAD(NeuralNet_AnomalyDetection):
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(1, activation='sigmoid')])
 
-        self.discriminator_zz = tf.keras.Sequential([
-            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu',
-                                  input_shape=(self.input_dim, ))),
-            SpectralNormalization(
-                tf.keras.layers.Dense(256, activation='relu')),
-            SpectralNormalization(
-                tf.keras.layers.Dense(1, activation='sigmoid'))
-        ])
+        self.discriminator_zz = DiscriminatorZZ()
 
-    def discriminator_loss_xz(self, l_encoder, l_generator, true_labels, generated_labels):
+    def discriminator_loss_xz(self, l_encoder, l_generator):
+        """"
+        Computes the loss for the xz-discriminator
+        """
 
-        loss_dis_enc = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=true_labels, logits=l_encoder)
-        )
-        loss_dis_gen = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=generated_labels, logits=l_generator)
-        )
+         # discriminator xz
+        loss_dis_enc = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            labels=tf.ones_like(l_encoder),logits=l_encoder))
+        loss_dis_gen = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            labels=tf.zeros_like(l_generator),logits=l_generator))
+
         return loss_dis_gen + loss_dis_enc
 
     def discriminator_loss_xx(self, x_logit_real, x_logit_fake):
+        """"
+        Computes the loss for the xx-discriminator
+        """
         x_real_dis = tf.nn.sigmoid_cross_entropy_with_logits(
             logits=x_logit_real, labels=tf.ones_like(x_logit_real)
         )
@@ -137,6 +159,9 @@ class ALAD(NeuralNet_AnomalyDetection):
         return tf.reduce_mean(x_real_dis + x_fake_dis)
 
     def discriminator_loss_zz(self, z_logit_real, z_logit_fake):
+        """"
+        Computes the loss for the zz-discriminator
+        """
         z_real_dis = tf.nn.sigmoid_cross_entropy_with_logits(
             logits=z_logit_real, labels=tf.ones_like(z_logit_real)
         )
@@ -145,39 +170,15 @@ class ALAD(NeuralNet_AnomalyDetection):
         )
         return tf.reduce_mean(z_real_dis + z_fake_dis)
 
-    def generator_loss(self, labels_gen, labels_enc, l_generator, l_encoder,
-                       x_logit_real, x_logit_fake, z_logit_real, z_logit_fake):
-        gen_loss_xz = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=labels_gen, logits=l_generator)
-        )
-        enc_loss_xz = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=labels_enc, logits=l_encoder)
-        )
 
-        x_real_gen = tf.nn.sigmoid_cross_entropy_with_logits(
-            logits=x_logit_real, labels=tf.zeros_like(x_logit_real)
-        )
-        x_fake_gen = tf.nn.sigmoid_cross_entropy_with_logits(
-            logits=x_logit_fake, labels=tf.ones_like(x_logit_fake)
-        )
-        z_real_gen = tf.nn.sigmoid_cross_entropy_with_logits(
-            logits=z_logit_real, labels=tf.zeros_like(z_logit_real)
-        )
-        z_fake_gen = tf.nn.sigmoid_cross_entropy_with_logits(
-            logits=z_logit_fake, labels=tf.ones_like(z_logit_fake)
-        )
-
-        cost_x = tf.reduce_mean(x_real_gen + x_fake_gen)
-        cost_z = tf.reduce_mean(z_real_gen + z_fake_gen)
-
-        cycle_consistency_loss = cost_x + cost_z + gen_loss_xz
-
-        return cycle_consistency_loss
-
-    def encoder_loss(self, labels_gen, labels_enc, l_generator, l_encoder,
+    def encoder_generator__loss(self, l_generator, l_encoder,
                      x_logit_real, x_logit_fake, z_logit_real, z_logit_fake):
+        
+
+        labels_gen = tf.zeros_like(l_generator)
+                    # Labels for the encoder (fake representations)
+        labels_enc = tf.ones_like(l_encoder)
+
         gen_loss_xz = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=labels_gen, logits=l_generator)
@@ -204,7 +205,7 @@ class ALAD(NeuralNet_AnomalyDetection):
         cost_z = tf.reduce_mean(z_real_gen + z_fake_gen)
 
         cycle_consistency_loss = cost_x + cost_z
-        return enc_loss_xz + cycle_consistency_loss + gen_loss_xz
+        return enc_loss_xz + cycle_consistency_loss, gen_loss_xz + cycle_consistency_loss
 
     def train(self, train_data, num_epochs, batch_size):
 
@@ -218,7 +219,7 @@ class ALAD(NeuralNet_AnomalyDetection):
 
             for batch_index in range(num_batches):
                 
-                print("batch latent data")
+            
 
                 with tf.GradientTape() as gen_tape, tf.GradientTape() as enc_tape, tf.GradientTape() as disc_xz_tape, tf.GradientTape() as disc_xx_tape, tf.GradientTape() as disc_zz_tape:
                 
@@ -231,6 +232,7 @@ class ALAD(NeuralNet_AnomalyDetection):
                 
                     # generate data from the latent representation
                     batch_fake_data = self.generator(batch_latent_vars)
+                    batch_latent_vars = tf.convert_to_tensor(batch_latent_vars, dtype=tf.float32)
 
                     #convert the real and fake data to tensors to be passed to the discriminators
                     batch_real_data = tf.convert_to_tensor(batch_real_data, dtype=tf.float32)
@@ -240,38 +242,24 @@ class ALAD(NeuralNet_AnomalyDetection):
                     x_logit_real = self.discriminator_xx(batch_real_data)
                     x_logit_fake = self.discriminator_xx(batch_fake_data)
 
-                    # Compute logits for the discriminator zz
-                    z_logit_real = self.discriminator_zz(batch_latent_vars)
-                    z_logit_fake = self.discriminator_zz(
-                        self.encoder(batch_real_data))
+                    #zz-discriminator for inputs (z, z) and (z, E(G(z))
+                    z_logit_real = self.discriminator_zz([batch_latent_vars, batch_latent_vars])
+                    z_logit_fake = self.discriminator_zz([batch_latent_vars, self.encoder(self.generator(batch_real_data))])
 
-                    # Compute logits for the discriminator xz
-                    l_encoder = self.discriminator_xz(
-                        [self.encoder(batch_real_data), self.encoder(batch_fake_data)])
-                    l_generator = self.discriminator_xz(
-                        [self.encoder(batch_real_data), self.encoder(batch_fake_data)])
+                    #xz-discriminator for inputs (G(z),z) and (x, E(x))
+                    l_generator = self.discriminator_xz([self.generator(batch_fake_data), batch_fake_data])
+                    l_encoder = self.discriminator_xz([batch_real_data, self.encoder(batch_real_data)])                 
 
-                    # Labels for the generator (fake samples)
-                    labels_gen = tf.zeros_like(l_generator)
-                    # Labels for the encoder (fake representations)
-                    labels_enc = tf.ones_like(l_encoder)
-
-                    print("prior to loss")
-                    # Compute the losses
-                    enc_loss = self.encoder_loss(
-                        labels_gen, labels_enc, l_generator, l_encoder,
+                    
+                    # Compute the losses for generator and encoder
+                    enc_loss, gen_loss = self.encoder_generator__loss(
+                        l_generator, l_encoder,
                         x_logit_real, x_logit_fake, z_logit_real, z_logit_fake
                     )
-                    gen_loss = self.generator_loss(
-                        labels_gen, labels_enc, l_generator, l_encoder, x_logit_real, x_logit_fake, z_logit_real, z_logit_fake)
-
-
-                    tensor = tf.constant(0.0, shape=(64, 1), dtype=tf.float32)
-                    true_labels = tf.ones_like(tensor)
-                    generated_labels = tf.zeros_like(tensor)
-
+            
+                    #compute the loss for the different discriminators 
                     disc_xz_loss = self.discriminator_loss_xz(
-                        l_encoder, l_generator, true_labels, generated_labels
+                        l_encoder, l_generator
                     )
                     disc_xx_loss = self.discriminator_loss_xx(
                         x_logit_real, x_logit_fake

@@ -6,8 +6,6 @@ from keras.layers import Input, Dense, Lambda, Layer, Flatten
 from keras.models import Model
 from keras import backend as K
 from keras.losses import categorical_crossentropy
-from tensorflow.python.framework.ops import disable_eager_execution
-disable_eager_execution()
 
 
 

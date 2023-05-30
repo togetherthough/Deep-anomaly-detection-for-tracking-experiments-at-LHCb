@@ -9,7 +9,6 @@ import tensorflow as tf
 from keras import backend as K
 from sklearn.metrics import roc_curve, auc
 from models.NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
-from tensorflow.python.framework.ops import disable_eager_execution
 
 
 
@@ -93,6 +92,11 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
         reconstructed = self.decoder(x_hid)
         return reconstructed, x_hid
 
+
+    def encode(self, inp):
+        inp = tf.convert_to_tensor(inp)
+        return self.encoder(inp).numpy()
+
     def call(self, inp):
         x_hid = self.encoder(inp)
         return self.decoder(x_hid)
@@ -161,7 +165,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
 
         return loss_value, tape.gradient(loss_value, self.trainable_variables), reconstruction
 
-    @tf.function
+
     def train(self, x_train, num_epochs, batch_size):
         """"
         Trains the CAE.
