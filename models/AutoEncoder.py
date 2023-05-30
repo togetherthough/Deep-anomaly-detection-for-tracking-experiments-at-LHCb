@@ -4,7 +4,7 @@ import tensorflow as tf
 import tensorflow as tf
 from keras import layers
 
-from NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
+from models.NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
 
 
 # https://www.tensorflow.org/tutorials/generative/autoencoder

@@ -8,9 +8,9 @@ from sklearn.metrics import auc
 import tensorflow as tf
 from keras import backend as K
 from sklearn.metrics import roc_curve, auc
-from NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
+from models.NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
 from tensorflow.python.framework.ops import disable_eager_execution
-disable_eager_execution()
+
 
 
 
@@ -161,6 +161,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
 
         return loss_value, tape.gradient(loss_value, self.trainable_variables), reconstruction
 
+    @tf.function
     def train(self, x_train, num_epochs, batch_size):
         """"
         Trains the CAE.
@@ -174,7 +175,8 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
             epoch_loss: a list containing the NN's loss over the training set
                         and over the validation one
         """
-
+        
+        
         # splitting the data into training and validation set
         x_train, x_val = train_test_split(x_train, test_size=0.2)
 
@@ -205,6 +207,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
             # at every epoch it will be computed the method loss
             # on it
             reconstructed, hidden = self.encode_decode(x_val)
+            x_val = tf.convert_to_tensor(x_val)
             val_loss = self.loss(x_val, reconstructed, hidden)
             print("Step: {}, Train Loss: {}, Val Loss: {}".format(
                 global_step.numpy(), tf.reduce_mean(loss_value), tf.reduce_mean(val_loss)))

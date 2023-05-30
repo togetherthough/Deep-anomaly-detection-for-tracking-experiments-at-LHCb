@@ -11,7 +11,7 @@ from tensorflow_addons.layers import SpectralNormalization
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
-from NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
+from models.NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
 
 
 # Define the GAN architecture
