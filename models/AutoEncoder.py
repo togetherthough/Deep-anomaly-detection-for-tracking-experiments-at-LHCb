@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from sklearn.metrics import auc, roc_curve
 import tensorflow as tf
@@ -41,6 +42,7 @@ class Autoencoder(NeuralNet_AnomalyDetection):
         self.input_dim = input_dim
         self.encoding_dim = encoding_dim
         self.learning_rate = learning_rate
+        self.model_name = "AE"
 
         self.build_model()
 
@@ -159,9 +161,15 @@ class Autoencoder(NeuralNet_AnomalyDetection):
             validation_split: proportion of data to be destined for training
             and proportion of data to be used for validation
         """
-
-        return self.fit(x_train, x_train, epochs=epochs, batch_size=batch_size,
+        start_time = time.time()
+        history = self.fit(x_train, x_train, epochs=epochs, batch_size=batch_size,
                         shuffle=True, validation_split=validation_split)
+
+        end_time = time.time()
+        training_time = end_time - start_time
+
+        return history, training_time
+        
 
     def encode(self, x_train):
         return self.encoder.predict(x_train)

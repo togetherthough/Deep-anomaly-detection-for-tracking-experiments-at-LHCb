@@ -98,7 +98,7 @@ class NeuralNet_AnomalyDetection(tf.keras.Model):
 
         return 0
 
-    def print_classification_metrics(self, y_true, y_pred):
+    def classification_metrics(self, y_true, y_pred, printing=False):
         """
         This method makes a report with the most relevant classification performance metrics.
 
@@ -108,18 +108,23 @@ class NeuralNet_AnomalyDetection(tf.keras.Model):
             y_pred: the predicted target values
 
         """
+
         accuracy = accuracy_score(y_true, y_pred)
         precision = precision_score(y_true, y_pred)
         recall = recall_score(y_true, y_pred)
         f1 = f1_score(y_true, y_pred)
-        report = classification_report(y_true, y_pred)
 
+        if printing == False:
+            return accuracy, precision, recall, f1
+        
+        report = classification_report(y_true, y_pred)
         print(f"Accuracy: {accuracy:.4f}")
         print(f"Precision: {precision:.4f}")
         print(f"Recall: {recall:.4f}")
         print(f"F1-Score: {f1:.4f}")
         print("Classification Report:")
         print(report)
+
 
     def get_confusion_matrix(self, y_true, y_pred):
         """"

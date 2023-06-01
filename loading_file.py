@@ -3,9 +3,9 @@ import glob
 import csv
 import pandas as pd
 
-src = "SimFiles_WithChi2/"
+src = "data/"
 
-files = glob.glob('SimFiles_WithChi2/*', recursive=True)
+files = glob.glob('src' + '*', recursive=True)
 
 data = []
 

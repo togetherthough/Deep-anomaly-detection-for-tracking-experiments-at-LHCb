@@ -1,5 +1,6 @@
 # utils
 import statistics
+import time
 import numpy as np
 
 # machine learning
@@ -42,6 +43,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
         self.encoding_dim = encoding_dim
         self.lambda_ = lambda_
         self.optimizer = tf.optimizers.Adam(learning_rate=learning_rate)
+        self.model_name = "CAE"
         self.build_model()
 
         # might wanna try something like
@@ -189,8 +191,8 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
 
         # for each epoch...
         epoch_loss = []
+        start_time = time.time()
         for epoch in range(num_epochs):
-            print("Epoch: ", epoch)
 
             for x in range(0, len(x_train), batch_size):
                 # the data is splitted into batches
@@ -219,8 +221,12 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
             # training loss and validation loss are concated in the epoch's loss
             epoch_loss.append(
                 [tf.reduce_mean(loss_value),  tf.reduce_mean(val_loss)])
+        
+        #stop the timer and compute the difference between the start and end 
+        end_time = time.time()
+        training_time = end_time - start_time
 
-        return epoch_loss
+        return epoch_loss, training_time
 
     def find_threshold_deviations(self, x_train, deviations):
         """"
@@ -237,7 +243,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
 
         """
 
-        reconstructions, _ = self.encode_decode(x_train)
+        reconstructions = self.call(x_train)
         # find the MSE loss between the training data and the reconstructed ones
         errors = np.mean(np.power(reconstructions - x_train, 2), axis=1)
         # finally find the threshold for the
@@ -259,7 +265,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
 
         """
 
-        reconstructions, _ = self.encode_decode(x_train)
+        reconstructions = self.call(x_train)
         # find the MSE loss between the training data and the reconstructed ones
         errors = np.mean(np.power(reconstructions - x_train, 2), axis=1)
         # set the threshold based on the percentile of the reconstruction error
@@ -282,7 +288,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
 
         """
         # TODO: check if the MSE is the correct error func for this case
-        predictions, _ = self.encode_decode(x_test)
+        predictions = self.call(x_test)
         errors = np.mean(np.power(predictions - x_test, 2), axis=1)
         predictions = np.where(errors > threshold, 1, 0)
         return predictions
