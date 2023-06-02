@@ -168,7 +168,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
         return loss_value, tape.gradient(loss_value, self.trainable_variables), reconstruction
 
 
-    def train(self, x_train, num_epochs, batch_size):
+    def train(self, x_train, epochs, batch_size, validation_split=0.2):
         """"
         Trains the CAE.
 
@@ -184,7 +184,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
         
         
         # splitting the data into training and validation set
-        x_train, x_val = train_test_split(x_train, test_size=0.2)
+        x_train, x_val = train_test_split(x_train, test_size=validation_split)
 
         # keeps the count of the current global training step
         global_step = tf.Variable(0)
@@ -192,7 +192,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
         # for each epoch...
         epoch_loss = []
         start_time = time.time()
-        for epoch in range(num_epochs):
+        for epoch in range(epochs):
 
             for x in range(0, len(x_train), batch_size):
                 # the data is splitted into batches

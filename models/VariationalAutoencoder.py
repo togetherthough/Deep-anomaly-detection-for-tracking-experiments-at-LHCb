@@ -130,7 +130,7 @@ class VariationalAutoEncoder(NeuralNet_AnomalyDetection):
 
         return epoch_loss, training_time
     
-    def train_standard(self, data, epochs, batch_size, validation_split=0.2):
+    def train(self, data, epochs, batch_size, validation_split=0.2):
 
         start_time = time.time()
 
