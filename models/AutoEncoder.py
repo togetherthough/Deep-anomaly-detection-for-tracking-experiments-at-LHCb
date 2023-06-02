@@ -97,7 +97,7 @@ class Autoencoder(NeuralNet_AnomalyDetection):
                 layers.Dense(8, activation="relu"),
                 layers.Dropout(0.1),
                 layers.Dense(
-                    self.encoding_dim, activation="relu")
+                    self.encoding_dim, activation="relu", name="bottleneck")
             ])
 
         # Defining an Decoder:
@@ -122,7 +122,7 @@ class Autoencoder(NeuralNet_AnomalyDetection):
             layers.Dense(512, activation="relu"),
             layers.Dropout(0.1),
             layers.Dense(
-                self.input_dim, activation="sigmoid")
+                self.input_dim, activation="sigmoid", name="final")
         ])
 
         # instantiate an "ADAM" optimizer

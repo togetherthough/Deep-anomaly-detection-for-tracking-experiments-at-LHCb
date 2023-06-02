@@ -84,7 +84,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
             tf.keras.layers.Dropout(0.1),
             tf.keras.layers.Dense(512, activation=tf.nn.relu),
             tf.keras.layers.Dropout(0.1),
-            tf.keras.layers.Dense(self.input_dim, activation="sigmoid")
+            tf.keras.layers.Dense(self.input_dim, activation="sigmoid", name="final")
         ])
 
         self.compile(optimizer=self.optimizer, loss=self.loss)
