@@ -25,14 +25,29 @@ from models.NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
 #and the real data, it is trained alongside the other two discriminators 
 
 class DiscriminatorXZ(tf.keras.Model):
-    def __init__(self):
-        super(DiscriminatorXZ, self).__init__()
-        # I'M NOT SURE THE CONCATENATE SHOULD BE WHERE IT IS NOW
+    def __init__(self, input_dim, latent_dim):
 
-        self.dense_x = tf.keras.layers.Dense(256, activation='relu')
-        self.dense_z = tf.keras.layers.Dense(256, activation='relu')
-        self.concat = tf.keras.layers.Concatenate()
-        self.output_layer = tf.keras.layers.Dense(1, activation='sigmoid')
+        #Discriminates between pairs (E(x), x) and (z, G(z))
+
+        super(DiscriminatorXZ, self).__init__()
+  
+        self.input_dim = input_dim
+        self.latent_dim = latent_dim
+
+        self.x = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(None, self.input_dim)),
+            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
+            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
+        ])
+
+        self.z = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(None, self.latent_dim)),
+            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
+            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
+        ])
+        
+        self.concatenate = tf.keras.layers.Concatenate()
+        self.output_layer = SpectralNormalization(tf.keras.layers.Dense(1, activation='sigmoid'))
 
     def call(self, inputs):
         """"
@@ -43,20 +58,76 @@ class DiscriminatorXZ(tf.keras.Model):
             inputs: tuple made of real and fake data
         """
         x, z = inputs
-        x_out = self.dense_x(x)
-        z_out = self.dense_z(z)
-        concatenated = self.concat([x_out, z_out])
-        output = self.output_layer(concatenated)
-        return output
+        x_out = self.x(x)
+        z_out = self.x(z)
+        concatenated = self.concatenate([x_out, z_out])
+        output_val = self.output_layer(concatenated)
+        return output_val
+
+
+
+class DiscriminatorXX(tf.keras.Model):
+    def __init__(self, input_dim):
+        super(DiscriminatorXX, self).__init__()
+
+        self.input_dim = input_dim
+
+        #concatenate immediatelly here
+
+        self.x1 = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(None, self.input_dim)),
+            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
+            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
+        ])
+
+        self.x2 = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(None, self.input_dim)),
+            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
+            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
+        ])
+        
+        self.concatenate = tf.keras.layers.Concatenate()
+        self.output_layer = SpectralNormalization(tf.keras.layers.Dense(1, activation='sigmoid'))
+
+    def call(self, inputs):
+        """"
+        The network takes as input both the 
+        real data and the fake one
+
+        Args:
+            inputs: tuple made of real and fake data
+        """
+        
+        x_1, x_2 = inputs       
+        x1out = self.x1(x_1)        
+        x2out = self.x2(x_2)       
+        concatenated = self.concatenate([x1out, x2out])      
+        output_val = self.output_val(concatenated)
+        return output_val
+
+
 
 class DiscriminatorZZ(tf.keras.Model):
-    def __init__(self):
+    def __init__(self, latent_dim):
         super(DiscriminatorZZ, self).__init__()
-        # I'M NOT SURE THE CONCATENATE SHOULD BE WHERE IT IS NOW
 
-        self.dense_z1 = SpectralNormalization(tf.keras.layers.Dense(256, activation='relu'))
-        self.dense_z2 = SpectralNormalization(tf.keras.layers.Dense(256, activation='relu'))
-        self.concat = tf.keras.layers.Concatenate()
+        #concatenate immediatelly here
+
+        self.latent_dim = latent_dim
+
+        self.z1 = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(None, self.latent_dim)),
+            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
+            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
+        ])
+
+        self.z2 = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(None, self.latent_dim)),
+            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
+            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
+        ])
+        
+        self.concatenate = tf.keras.layers.Concatenate()
         self.output_layer = SpectralNormalization(tf.keras.layers.Dense(1, activation='sigmoid'))
 
     def call(self, inputs):
@@ -69,11 +140,11 @@ class DiscriminatorZZ(tf.keras.Model):
         """
         
         z_1, z_2 = inputs       
-        z1out = self.dense_z1(z_1)        
-        z2out = self.dense_z2(z_2)       
-        concatenated = self.concat([z1out, z2out])      
-        output = self.output_layer(concatenated)
-        return output
+        z1out = self.z1(z_1)        
+        z2out = self.z2(z_2)       
+        concatenated = self.concatenate([z1out, z2out])      
+        output_val = self.output_layer(concatenated)
+        return output_val
 
 class ALAD(NeuralNet_AnomalyDetection):
     def __init__(self, input_dim, latent_dim, learning_rate):
@@ -122,16 +193,11 @@ class ALAD(NeuralNet_AnomalyDetection):
         # Spectral Normalization resolves these problems.
         # this has to be applied only on the discriminator zz
 
-        self.discriminator_xz = DiscriminatorXZ()
+        self.discriminator_xz = DiscriminatorXZ(self.input_dim, self.latent_dim)
 
-        self.discriminator_xx = tf.keras.Sequential([
-            tf.keras.layers.Dense(256, activation='relu',
-                                  input_shape=(None, input_dim)),
+        self.discriminator_xx = DiscriminatorXX(self.input_dim)
 
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(1, activation='sigmoid')])
-
-        self.discriminator_zz = DiscriminatorZZ()
+        self.discriminator_zz = DiscriminatorZZ(self.latent_dim)
 
     def discriminator_loss_xz(self, l_encoder, l_generator):
         """"
@@ -207,10 +273,10 @@ class ALAD(NeuralNet_AnomalyDetection):
         cycle_consistency_loss = cost_x + cost_z
         return enc_loss_xz + cycle_consistency_loss, gen_loss_xz + cycle_consistency_loss
 
-    def train(self, train_data, num_epochs, batch_size):
+    def train(self, train_data, epochs, batch_size):
 
         # Training loop
-        for epoch in range(num_epochs):
+        for epoch in range(epochs):
             # Shuffle the training data
             #train_data = train_data.sample(frac=1)
 
@@ -244,6 +310,8 @@ class ALAD(NeuralNet_AnomalyDetection):
 
                     #zz-discriminator for inputs (z, z) and (z, E(G(z))
                     z_logit_real = self.discriminator_zz([batch_latent_vars, batch_latent_vars])
+                    print(tf.shape(self.encoder(batch_real_data)))
+                    print(tf.shape(batch_latent_vars))
                     z_logit_fake = self.discriminator_zz([batch_latent_vars, self.encoder(self.generator(batch_real_data))])
 
                     #xz-discriminator for inputs (G(z),z) and (x, E(x))
