@@ -1,3 +1,4 @@
+from sklearn.metrics import auc, roc_curve
 import tensorflow as tf
 import numpy as np
 from keras.initializers import glorot_normal
@@ -14,13 +15,6 @@ import tensorflow as tf
 from models.NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
 
 
-# Define the GAN architecture
-
-# https://www.kaggle.com/code/sekfook97/gan-for-anomaly-detection
-
-# https://www.kaggle.com/code/francoisdubois/bidirectionnal-gan-keras
-
-
 #this network learns to discriminate between natually distributed noise
 #and the real data, it is trained alongside the other two discriminators 
 
@@ -35,19 +29,19 @@ class DiscriminatorXZ(tf.keras.Model):
         self.latent_dim = latent_dim
 
         self.x = tf.keras.Sequential([
-            tf.keras.layers.Input(shape=(None, self.input_dim)),
+            tf.keras.layers.Input(shape=(self.input_dim,)),
             SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
             SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
         ])
 
         self.z = tf.keras.Sequential([
-            tf.keras.layers.Input(shape=(None, self.latent_dim)),
+            tf.keras.layers.Input(shape=(self.latent_dim, )),
             SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
             SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
         ])
         
         self.concatenate = tf.keras.layers.Concatenate()
-        self.output_layer = SpectralNormalization(tf.keras.layers.Dense(1, activation='sigmoid'))
+        self.output_layer = SpectralNormalization(tf.keras.layers.Dense(1))
 
     def call(self, inputs):
         """"
@@ -59,7 +53,7 @@ class DiscriminatorXZ(tf.keras.Model):
         """
         x, z = inputs
         x_out = self.x(x)
-        z_out = self.x(z)
+        z_out = self.z(z)
         concatenated = self.concatenate([x_out, z_out])
         output_val = self.output_layer(concatenated)
         return output_val
@@ -71,23 +65,18 @@ class DiscriminatorXX(tf.keras.Model):
         super(DiscriminatorXX, self).__init__()
 
         self.input_dim = input_dim
-
-        #concatenate immediatelly here
-
-        self.x1 = tf.keras.Sequential([
-            tf.keras.layers.Input(shape=(None, self.input_dim)),
-            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
-            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
-        ])
-
-        self.x2 = tf.keras.Sequential([
-            tf.keras.layers.Input(shape=(None, self.input_dim)),
-            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
-            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
-        ])
         
         self.concatenate = tf.keras.layers.Concatenate()
-        self.output_layer = SpectralNormalization(tf.keras.layers.Dense(1, activation='sigmoid'))
+
+        self.x = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(None, self.input_dim + self.input_dim)),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(512, activation='relu'),
+            tf.keras.layers.Dense(1024, activation='relu'),
+            tf.keras.layers.Dense(2048, activation='relu'),
+        ])
+        
+        self.output_layer = tf.keras.layers.Dense(1)
 
     def call(self, inputs):
         """"
@@ -98,11 +87,10 @@ class DiscriminatorXX(tf.keras.Model):
             inputs: tuple made of real and fake data
         """
         
-        x_1, x_2 = inputs       
-        x1out = self.x1(x_1)        
-        x2out = self.x2(x_2)       
-        concatenated = self.concatenate([x1out, x2out])      
-        output_val = self.output_val(concatenated)
+        x_1, x_2 = inputs  
+        concatenated = self.concatenate([x_1, x_2])      
+        x_out = self.x(concatenated)                  
+        output_val = self.output_layer(x_out)
         return output_val
 
 
@@ -115,20 +103,17 @@ class DiscriminatorZZ(tf.keras.Model):
 
         self.latent_dim = latent_dim
 
-        self.z1 = tf.keras.Sequential([
-            tf.keras.layers.Input(shape=(None, self.latent_dim)),
-            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
-            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
-        ])
+        self.concatenate = tf.keras.layers.Concatenate()
 
-        self.z2 = tf.keras.Sequential([
-            tf.keras.layers.Input(shape=(None, self.latent_dim)),
-            SpectralNormalization(tf.keras.layers.Dense(256, activation='relu')),
-            SpectralNormalization(tf.keras.layers.Dense(512, activation='relu')),
+        self.z = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(None, self.latent_dim + self.latent_dim)),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(512, activation='relu'),
+            tf.keras.layers.Dense(1024, activation='relu'),
+            tf.keras.layers.Dense(2048, activation='relu'),
         ])
         
-        self.concatenate = tf.keras.layers.Concatenate()
-        self.output_layer = SpectralNormalization(tf.keras.layers.Dense(1, activation='sigmoid'))
+        self.output_layer = tf.keras.layers.Dense(1)
 
     def call(self, inputs):
         """"
@@ -139,11 +124,10 @@ class DiscriminatorZZ(tf.keras.Model):
             inputs: tuple made of real and fake data
         """
         
-        z_1, z_2 = inputs       
-        z1out = self.z1(z_1)        
-        z2out = self.z2(z_2)       
-        concatenated = self.concatenate([z1out, z2out])      
-        output_val = self.output_layer(concatenated)
+        z_1, z_2 = inputs  
+        concatenated = self.concatenate([z_1, z_2])        
+        z = self.z(concatenated)
+        output_val = self.output_layer(z)
         return output_val
 
 class ALAD(NeuralNet_AnomalyDetection):
@@ -167,14 +151,19 @@ class ALAD(NeuralNet_AnomalyDetection):
         # using the glorot normal because is the same of the
         # original code glorot = xavier, it can be found in the paper
         self.encoder = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(
-                None, input_dim)),
+            tf.keras.layers.InputLayer(input_shape=(self.input_dim, )),
+            tf.keras.layers.Dense(128, activation='relu',
+                                  kernel_initializer=glorot_normal),
             tf.keras.layers.Dense(64, activation='relu',
                                   kernel_initializer=glorot_normal),
             tf.keras.layers.Dense(32, activation='relu',
                                   kernel_initializer=glorot_normal),
+            tf.keras.layers.Dense(16, activation='relu',
+                                  kernel_initializer=glorot_normal),
+            tf.keras.layers.Dense(8, activation='relu',
+                                  kernel_initializer=glorot_normal),
             tf.keras.layers.Dense(
-                latent_dim, kernel_initializer=glorot_normal),
+                self.latent_dim, kernel_initializer=glorot_normal),
         ])
 
         # The generator tries to replicate the original distribution 
@@ -185,8 +174,10 @@ class ALAD(NeuralNet_AnomalyDetection):
                                   kernel_initializer=glorot_normal),
             tf.keras.layers.Dense(128, activation='relu',
                                   kernel_initializer=glorot_normal),
+            tf.keras.layers.Dense(128, activation='relu',
+                                  kernel_initializer=glorot_normal),
 
-            tf.keras.layers.Dense(input_dim, kernel_initializer=glorot_normal),
+            tf.keras.layers.Dense(self.input_dim, kernel_initializer=glorot_normal),
         ])
 
         # GAN is vulnerable to mode collapse and training instability.
@@ -203,8 +194,6 @@ class ALAD(NeuralNet_AnomalyDetection):
         """"
         Computes the loss for the xz-discriminator
         """
-
-         # discriminator xz
         loss_dis_enc = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
             labels=tf.ones_like(l_encoder),logits=l_encoder))
         loss_dis_gen = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
@@ -242,7 +231,7 @@ class ALAD(NeuralNet_AnomalyDetection):
         
 
         labels_gen = tf.zeros_like(l_generator)
-                    # Labels for the encoder (fake representations)
+        # Labels for the encoder (fake representations)
         labels_enc = tf.ones_like(l_encoder)
 
         gen_loss_xz = tf.reduce_mean(
@@ -253,6 +242,8 @@ class ALAD(NeuralNet_AnomalyDetection):
             tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=labels_enc, logits=l_encoder)
         )
+
+        #TODO: cycle consistency broken
 
         x_real_gen = tf.nn.sigmoid_cross_entropy_with_logits(
             logits=x_logit_real, labels=tf.zeros_like(x_logit_real)
@@ -271,7 +262,9 @@ class ALAD(NeuralNet_AnomalyDetection):
         cost_z = tf.reduce_mean(z_real_gen + z_fake_gen)
 
         cycle_consistency_loss = cost_x + cost_z
-        return enc_loss_xz + cycle_consistency_loss, gen_loss_xz + cycle_consistency_loss
+
+
+        return enc_loss_xz , gen_loss_xz 
 
     def train(self, train_data, epochs, batch_size):
 
@@ -305,53 +298,33 @@ class ALAD(NeuralNet_AnomalyDetection):
                     batch_fake_data = tf.convert_to_tensor(batch_fake_data, dtype=tf.float32)
 
                     # Compute logits for the discriminator xx
-                    x_logit_real = self.discriminator_xx(batch_real_data)
-                    x_logit_fake = self.discriminator_xx(batch_fake_data)
+                    x_logit_real = self.discriminator_xx.call([batch_real_data, batch_real_data])
+                    x_logit_fake = self.discriminator_xx.call([batch_real_data, batch_fake_data])
 
                     #zz-discriminator for inputs (z, z) and (z, E(G(z))
-                    z_logit_real = self.discriminator_zz([batch_latent_vars, batch_latent_vars])
-                    print(tf.shape(self.encoder(batch_real_data)))
-                    print(tf.shape(batch_latent_vars))
-                    z_logit_fake = self.discriminator_zz([batch_latent_vars, self.encoder(self.generator(batch_real_data))])
+                    z_logit_real = self.discriminator_zz.call([batch_latent_vars, batch_latent_vars])
+                    z_logit_fake = self.discriminator_zz.call([batch_latent_vars, self.encoder(self.generator(batch_latent_vars))])
 
                     #xz-discriminator for inputs (G(z),z) and (x, E(x))
-                    l_generator = self.discriminator_xz([self.generator(batch_fake_data), batch_fake_data])
-                    l_encoder = self.discriminator_xz([batch_real_data, self.encoder(batch_real_data)])                 
+                    l_generator = self.discriminator_xz.call([self.generator(batch_latent_vars), batch_latent_vars])
+                    l_encoder = self.discriminator_xz.call([batch_real_data, self.encoder(batch_real_data)])                 
 
                     
                     # Compute the losses for generator and encoder
-                    enc_loss, gen_loss = self.encoder_generator__loss(
-                        l_generator, l_encoder,
-                        x_logit_real, x_logit_fake, z_logit_real, z_logit_fake
-                    )
+                    enc_loss, gen_loss = self.encoder_generator__loss(l_generator, l_encoder,
+                        x_logit_real, x_logit_fake, z_logit_real, z_logit_fake)
             
                     #compute the loss for the different discriminators 
-                    disc_xz_loss = self.discriminator_loss_xz(
-                        l_encoder, l_generator
-                    )
-                    disc_xx_loss = self.discriminator_loss_xx(
-                        x_logit_real, x_logit_fake
-                    )
-                    disc_zz_loss = self.discriminator_loss_zz(
-                        z_logit_real, z_logit_fake
-                    )
+                    disc_xz_loss = self.discriminator_loss_xz(l_encoder, l_generator)
+                    disc_xx_loss = self.discriminator_loss_xx(x_logit_real, x_logit_fake)
+                    disc_zz_loss = self.discriminator_loss_zz(z_logit_real, z_logit_fake)
 
                 # Calculate the gradients for the different networks
-                gen_gradients = gen_tape.gradient(
-                    gen_loss, self.generator.trainable_variables
-                )
-                enc_gradients = enc_tape.gradient(
-                    enc_loss, self.encoder.trainable_variables
-                )
-                disc_xz_gradients = disc_xz_tape.gradient(
-                    disc_xz_loss, self.discriminator_xz.trainable_variables
-                )
-                disc_xx_gradients = disc_xx_tape.gradient(
-                    disc_xx_loss, self.discriminator_xx.trainable_variables
-                )
-                disc_zz_gradients = disc_zz_tape.gradient(
-                    disc_zz_loss, self.discriminator_zz.trainable_variables
-                )
+                gen_gradients = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
+                enc_gradients = enc_tape.gradient(enc_loss, self.encoder.trainable_variables)
+                disc_xz_gradients = disc_xz_tape.gradient(disc_xz_loss, self.discriminator_xz.trainable_variables)
+                disc_xx_gradients = disc_xx_tape.gradient(disc_xx_loss, self.discriminator_xx.trainable_variables)
+                disc_zz_gradients = disc_zz_tape.gradient(disc_zz_loss, self.discriminator_zz.trainable_variables)
 
                 # update the weights of the generator, encoder, and discriminators
                 # to improve the performance of each network
@@ -366,7 +339,7 @@ class ALAD(NeuralNet_AnomalyDetection):
                 self.discriminator_zz_optimizer.apply_gradients(
                     zip(disc_zz_gradients, self.discriminator_zz.trainable_variables))
 
-            print("Step: {},  Encoder Loss: {}, Decoder Loss: {}, Disc_xx Loss: {}, Disc_xz Loss: {}, Disc_zz Loss: {}".format(
+            print("Epoch: {},  Encoder Loss: {}, Decoder Loss: {}, Disc_xx Loss: {}, Disc_xz Loss: {}, Disc_zz Loss: {}".format(
                 epoch, tf.reduce_sum(enc_loss), tf.reduce_sum(gen_loss), tf.reduce_sum(disc_xx_loss), tf.reduce_sum(disc_xz_loss), tf.reduce_sum(disc_zz_loss)))
 
     def predict(self, x):
@@ -379,8 +352,76 @@ class ALAD(NeuralNet_AnomalyDetection):
         #finally get the difference between 
         # the discrimination value of the real data
         # and the real data versus generated one pair
-        f_xx_x = self.discriminator_xx(x, x)
-        f_xx_x_hat = self.discriminator_xx(x, x_hat)
+        f_xx_x = self.discriminator_xx([x, x])
+        f_xx_x_hat = self.discriminator_xx([x, x_hat])
         #anomaly score 
         anomaly_score = abs(f_xx_x - f_xx_x_hat)  
         return anomaly_score
+    
+    def find_best_deviations_threshold(self, x_train, x_test, y_test):
+        """"
+        This method finds the best threshold for anomaly detection as
+        a function of the mean and standard error  between reconstructed training data and
+        the training data itself.
+        The metric used to score what threshold is the best is accuracy.
+
+
+        Args:
+            x_train: the sample of features used for training
+            x_test: the sample of features used for testing
+            y_test: the sample of target values kept for testing
+
+
+        Returns:
+            The best threshold that could be found using the deviations method.
+
+        """
+        # determining a set of suitable values to use
+        # as multipliers of the std in the "find_threshold_deviations" method
+        thresholds = np.linspace(0.1, 3.0, num=30)
+        best_threshold = None
+        best_score = 0.0
+
+        for threshold in thresholds:
+            # for the desired threshold determine which are the anomalous
+            # instances in the testing set
+            threshold = self.find_threshold_deviations(x_train, threshold)
+            predictions = self.find_anomalies(x_test, threshold)
+
+            # this is the metric to be maximized
+            fpr, tpr, _ = roc_curve(y_test, predictions)
+            score = auc(fpr, tpr)
+
+            # if the AUC score given by current threshold
+            # is the best so far, return currrent threshold
+            # as the final one to use for anomaly detection
+            if score > best_score:
+                best_score = score
+                best_threshold = threshold
+
+        return best_threshold
+    
+
+    def find_anomalies(self, x_test, threshold):
+        """"
+        This method makes predicitons in the forms of 1 or 0,
+        if an instance is considered to be an anomaly its
+        value will be 1, if is a normal instace its value will be 0.
+        Whenever the determinant value (reconstruction error,
+        anomaly score...etc) for one instance is bigger than the
+        threshold that is classified as an anomaly, else as normal data.
+
+        Args:
+            x_test: the sample of features kept for validation
+            threshold: the threshold used to classify new instances as anomaly or not
+
+        Returns:
+            This method returns a list containg 1 for anomalies and 0 for normal instances
+
+        """
+
+        predictions = self.predict(x_test)
+        predictions = np.where(predictions > threshold, 1, 0)
+
+        return predictions
+
