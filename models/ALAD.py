@@ -1,3 +1,4 @@
+import time
 from sklearn.metrics import auc, roc_curve
 import tensorflow as tf
 import numpy as np
@@ -136,6 +137,8 @@ class ALAD(NeuralNet_AnomalyDetection):
         #setting up the input and latent dimensions 
         self.input_dim = input_dim
         self.latent_dim = latent_dim
+        self.model_name = "ALAD"
+
         #setting up the optimizers for every network
         self.generator_optimizer = tf.keras.optimizers.Adam(learning_rate)
         self.encoder_optimizer = tf.keras.optimizers.Adam(learning_rate)
@@ -151,19 +154,23 @@ class ALAD(NeuralNet_AnomalyDetection):
         # using the glorot normal because is the same of the
         # original code glorot = xavier, it can be found in the paper
         self.encoder = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(self.input_dim, )),
-            tf.keras.layers.Dense(128, activation='relu',
-                                  kernel_initializer=glorot_normal),
-            tf.keras.layers.Dense(64, activation='relu',
-                                  kernel_initializer=glorot_normal),
-            tf.keras.layers.Dense(32, activation='relu',
-                                  kernel_initializer=glorot_normal),
-            tf.keras.layers.Dense(16, activation='relu',
-                                  kernel_initializer=glorot_normal),
-            tf.keras.layers.Dense(8, activation='relu',
-                                  kernel_initializer=glorot_normal),
             tf.keras.layers.Dense(
-                self.latent_dim, kernel_initializer=glorot_normal),
+                512, activation=tf.nn.relu, input_shape=(self.input_dim,)),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(256, activation=tf.nn.relu),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(128, activation=tf.nn.relu),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(64, activation=tf.nn.relu),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(32, activation=tf.nn.relu),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(16, activation=tf.nn.relu),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(8, activation=tf.nn.relu),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(
+                self.latent_dim, activation=tf.nn.relu, name="bottleneck")
         ])
 
         # The generator tries to replicate the original distribution 
@@ -256,7 +263,7 @@ class ALAD(NeuralNet_AnomalyDetection):
 
         return enc_loss_xz + cycle_consistency_loss, gen_loss_xz + cycle_consistency_loss
 
-    def train(self, train_data, epochs, batch_size):
+    def train(self, train_data, epochs, batch_size, validation_split=None):
 
         # Training loop
         for epoch in range(epochs):
@@ -265,6 +272,9 @@ class ALAD(NeuralNet_AnomalyDetection):
 
             # Calculate the number of batches
             num_batches = len(train_data) // batch_size
+
+            epoch_loss = []
+            start_time = time.time()
 
             for batch_index in range(num_batches):
                 
@@ -342,6 +352,15 @@ class ALAD(NeuralNet_AnomalyDetection):
 
             print("Epoch: {},  Encoder Loss: {}, Generator Loss: {}, Disc_xx Loss: {}, Disc_xz Loss: {}, Disc_zz Loss: {}".format(
                 epoch+1, tf.reduce_sum(enc_loss), tf.reduce_sum(gen_loss), tf.reduce_sum(disc_xx_loss), tf.reduce_sum(disc_xz_loss), tf.reduce_sum(disc_zz_loss)))
+            
+            epoch_loss.append(
+                [tf.reduce_mean(gen_loss),  tf.reduce_mean(disc_xx_loss+disc_xz_loss+disc_zz_loss)])
+            
+        #stop the timer and compute the difference between the start and end 
+        end_time = time.time()
+        training_time = end_time - start_time
+
+        return epoch_loss, training_time
 
     def predict(self, x):
         
