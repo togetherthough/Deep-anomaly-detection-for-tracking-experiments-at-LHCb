@@ -8,8 +8,6 @@ from keras import layers
 from models.NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
 
 
-# https://www.tensorflow.org/tutorials/generative/autoencoder
-
 class Autoencoder(NeuralNet_AnomalyDetection):
 
     """"
