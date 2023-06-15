@@ -148,7 +148,7 @@ class ALAD(NeuralNet_AnomalyDetection):
         cycle_consistency_loss = cost_x + cost_z
 
 
-        return enc_loss_xz + cycle_consistency_loss, gen_loss_xz + cycle_consistency_loss
+        return enc_loss_xz, gen_loss_xz
 
     def train(self, train_data, epochs, batch_size, validation_split=None):
 
