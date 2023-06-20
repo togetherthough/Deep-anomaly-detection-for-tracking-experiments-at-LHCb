@@ -64,7 +64,6 @@ class DiscriminatorXX(tf.keras.Model):
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(512, activation='relu'),
             tf.keras.layers.Dense(1024, activation='relu'),
-            tf.keras.layers.Dense(2048, activation='relu'),
         ])
         
         self.output_layer = tf.keras.layers.Dense(1)
@@ -101,7 +100,6 @@ class DiscriminatorZZ(tf.keras.Model):
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(512, activation='relu'),
             tf.keras.layers.Dense(1024, activation='relu'),
-            tf.keras.layers.Dense(2048, activation='relu'),
         ])
         
         self.output_layer = tf.keras.layers.Dense(1)

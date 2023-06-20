@@ -24,17 +24,14 @@ class NeuralNet_AnomalyDetection(tf.keras.Model):
     def __init__(self):
         super(NeuralNet_AnomalyDetection, self).__init__()
 
-    def find_threshold_deviations(self, x_val, deviations, y_val=None):
+    def find_threshold_deviations(self, x_val, deviations):
         """"
         This method finds the threshold for anomaly detection as
         function of the mean and standard residual between reconstructed training data
         and the training data itself.
 
         Args:
-            x_val:a sample that has not been used for training and that's not the testing set,
-            if we use x_train we expect that the method already knows to well its distribution
-            while we expect not to know the target value of the x_test sample 
-
+            x_train: the sample of features used for training
             deviations: the number of deviations to be considered
 
         Returns:
@@ -42,61 +39,57 @@ class NeuralNet_AnomalyDetection(tf.keras.Model):
 
         """
 
-        # make some predictions, those can be
-        # the reconstructed data or an anomaly score
-        predictions = self.predict(x_val)
-
-        # as a function of the predictions and the number of deviations
-        # of those find a threshold that will separate anomalies from normal instances
-        threshold = 0
-
+        reconstructions = self.predict(x_val)
+        # find the MSE loss between the training data and the reconstructed ones
+        errors = tf.keras.losses.MSE(x_val, reconstructions)
+        # finally find the threshold for the
+        threshold = np.mean(errors.numpy()) + deviations * \
+            np.std(errors.numpy())
         return threshold
 
-    def find_treshold_percentile(self, x_val, percentile, y_val=None):
+    def find_treshold_percentile(self, x_val, percentile):
         """"
         This method finds the threshold for anomaly detection as
         a percetile of the residual between reconstructed training data and
         the training data itself.
 
         Args:
-            x_val:a sample that has not been used for training and that's not the testing set,
-            if we use x_train we expect that the method already knows to well its distribution
-            while we expect not to know the target value of the x_test sample 
+            x_train: the sample of features used for training
+            percentile: the desiered percentile to be looked up in the reconstruction errors
 
         Returns:
             The threshold for anomaly detection.
 
         """
-        # make some predictions, those can be
-        # the reconstructed data or an anomaly score
-        predictions = self.predict(x_val)
 
-        # as a function of the predictions and the percentile
-        # of those find a threshold that will separate anomalies from normal instances
-        threshold = 0
+        reconstructions = self.predict(x_val)
+        # find the MSE loss between the training data and the reconstructed ones
+        errors = tf.keras.losses.MSE(x_val, reconstructions)
+        # set the threshold based on the percentile of the reconstruction error
+        threshold = np.percentile(errors, percentile)
 
         return threshold
 
-    def find_anomalies(self, x_test=None, threshold=None):
+
+    def find_anomalies(self, x_test, threshold):
         """"
-        This method makes predicitons in the forms of 1 or 0,
-        if an instance is considered to be an anomaly its
-        value will be 1, if is a normal instace its value will be 0.
-        Whenever the determinant value (reconstruction error,
-        anomaly score...etc) for one instance is bigger than the
-        threshold that is classified as an anomaly, else as normal data.
+        This method makes predicitons in the forms of 1 or 0.
+        Whenever the reconstruction error for one instance is bigger
+        than the threshold that is classified as an anomaly, else as normal data.
 
         Args:
             x_test: the sample of features kept for validation
             threshold: the threshold used to classify new instances as anomaly or not
 
         Returns:
-            This method returns a list containg 1 for anomalies and 0 for normal instances
+            This method returns 1 for anomaly and 0 for normal instance
 
         """
-        print("These are the anomalies...")
 
-        return 0
+        predictions = self.predict(x_test)
+        errors = tf.keras.losses.MSE(predictions, x_test)
+        predictions = np.where(errors > threshold, 1, 0)
+        return predictions
 
     def classification_metrics(self, y_true, y_pred, printing=False):
         """

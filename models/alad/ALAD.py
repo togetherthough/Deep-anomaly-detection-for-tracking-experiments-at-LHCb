@@ -148,7 +148,7 @@ class ALAD(NeuralNet_AnomalyDetection):
         cycle_consistency_loss = cost_x + cost_z
 
 
-        return enc_loss_xz, gen_loss_xz
+        return enc_loss_xz + cycle_consistency_loss, gen_loss_xz + cycle_consistency_loss
 
     def train(self, train_data, epochs, batch_size, validation_split=None):
 
@@ -264,50 +264,6 @@ class ALAD(NeuralNet_AnomalyDetection):
         #anomaly score 
         anomaly_score = abs(f_xx_x - f_xx_x_hat)  
         return anomaly_score
-    
-    def find_best_deviations_threshold(self, x_train, x_test, y_test):
-        """"
-        This method finds the best threshold for anomaly detection as
-        a function of the mean and standard error  between reconstructed training data and
-        the training data itself.
-        The metric used to score what threshold is the best is accuracy.
-
-
-        Args:
-            x_train: the sample of features used for training
-            x_test: the sample of features used for testing
-            y_test: the sample of target values kept for testing
-
-
-        Returns:
-            The best threshold that could be found using the deviations method.
-
-        """
-        # determining a set of suitable values to use
-        # as multipliers of the std in the "find_threshold_deviations" method
-        thresholds = np.linspace(0.1, 3.0, num=30)
-        best_threshold = None
-        best_score = 0.0
-
-        for threshold in thresholds:
-            # for the desired threshold determine which are the anomalous
-            # instances in the testing set
-            threshold = self.find_threshold_deviations(x_train, threshold)
-            predictions = self.find_anomalies(x_test, threshold)
-
-            # this is the metric to be maximized
-            fpr, tpr, _ = roc_curve(y_test, predictions)
-            score = auc(fpr, tpr)
-
-            # if the AUC score given by current threshold
-            # is the best so far, return currrent threshold
-            # as the final one to use for anomaly detection
-            if score > best_score:
-                best_score = score
-                best_threshold = threshold
-
-        return best_threshold
-    
 
     def find_anomalies(self, x_test, threshold):
         """"
