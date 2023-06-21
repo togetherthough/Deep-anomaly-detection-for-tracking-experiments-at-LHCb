@@ -238,7 +238,7 @@ class ALAD(NeuralNet_AnomalyDetection):
                     zip(disc_zz_gradients, self.discriminator_zz.trainable_variables))
 
             
-            epoch_loss.append([tf.reduce_mean(gen_loss),  tf.reduce_mean(disc_xx_loss+disc_xz_loss+disc_zz_loss)])
+            epoch_loss.append([tf.reduce_mean(disc_xx_loss+disc_xz_loss+disc_zz_loss), tf.reduce_mean(gen_loss)])
             print("Epoch: {},  Encoder Loss: {}, Generator Loss: {}, Disc_xx Loss: {}, Disc_xz Loss: {}, Disc_zz Loss: {}".format(
                 epoch+1, tf.reduce_mean(enc_loss), tf.reduce_mean(gen_loss), tf.reduce_mean(disc_xx_loss), tf.reduce_mean(disc_xz_loss), tf.reduce_mean(disc_zz_loss)))          
             
