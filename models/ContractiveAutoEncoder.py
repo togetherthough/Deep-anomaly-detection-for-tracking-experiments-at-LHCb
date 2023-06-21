@@ -216,7 +216,7 @@ class ContractiveAutoEncoder(NeuralNet_AnomalyDetection):
             x_val = tf.convert_to_tensor(x_val)
             val_loss = self.loss(x_val, reconstructed, hidden)
             print("Step: {}, Train Loss: {}, Val Loss: {}".format(
-                global_step.numpy(), tf.reduce_mean(loss_value), tf.reduce_mean(val_loss)))
+                epoch + 1, tf.reduce_mean(loss_value), tf.reduce_mean(val_loss)))
 
             # training loss and validation loss are concated in the epoch's loss
             epoch_loss.append(

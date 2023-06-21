@@ -167,11 +167,9 @@ class Autoencoder(NeuralNet_AnomalyDetection):
         training_time = end_time - start_time
 
         return history, training_time
-        
 
     def encode(self, x_train):
         return self.encoder.predict(x_train)
 
     def decode(self, encoded):
         return self.decoder.predict(encoded)
-

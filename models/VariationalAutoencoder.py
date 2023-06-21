@@ -12,6 +12,14 @@ from models.NeuralNet_AnomalyDetection import NeuralNet_AnomalyDetection
 
 class Resample(layers.Layer):
 
+    """""
+    
+    Custom layer put in use at the bottleneck of the encoder.
+    The purpose is to sample from the latent distribution z.
+    We actually don't don't know ot, but to approximate it
+    we use a normal distribution and "reparametrize" it.
+    """
+
     def call(self, inputs):
         mean, log_var = inputs
         e = tf.keras.backend.random_normal(shape=(tf.shape(mean)[0], tf.shape(mean)[1]))
@@ -29,6 +37,7 @@ class VariationalAutoEncoder(NeuralNet_AnomalyDetection):
         self.model_name = "VAE"
         self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
 
+        #Defining the Encoder: the architecture is the same as in the naive Autoencoder
         encoder_inputs = keras.Input(shape=(self.input_dim,))
         x = keras.layers.Dense(512, activation=tf.nn.relu)(encoder_inputs)
         x = keras.layers.Dropout(0.1)(x)
@@ -48,7 +57,8 @@ class VariationalAutoEncoder(NeuralNet_AnomalyDetection):
         z_log_var = layers.Dense(self.latent_dim, name="z_log_var")(x)
         z = Resample()([z_mean, z_log_var])
         self.encoder = keras.Model(encoder_inputs, [z_mean, z_log_var, z], name="encoder")
-
+        
+        #Defining the Decoder: the architecture is the same as in the naive Autoencoder
         latent_inputs = keras.Input(shape=(self.latent_dim,))
         x = keras.layers.Dense(16, activation=tf.nn.relu)(latent_inputs)
         x = keras.layers.Dropout(0.1)(x)
@@ -69,12 +79,6 @@ class VariationalAutoEncoder(NeuralNet_AnomalyDetection):
         self.compile(optimizer=self.optimizer)
 
     
-    @property
-    def metrics(self):
-        return [
-            self.total_loss_tracker,
-        ]
-    
     def encode(self, data):
         _, _, z = self.encoder(data)
         return z
@@ -84,6 +88,22 @@ class VariationalAutoEncoder(NeuralNet_AnomalyDetection):
         return self.decoder(z)
     
     def vae_loss(self, data):
+        """
+        Computes the loss for the VAE. 
+        Here the overall loss is a sum of the reconstruction loss,
+        which is the difference between the original data and the one 
+        reconstructed by the VAE, and the KL loss. 
+        
+        KL measures the difference between the encoded distribution 
+        and the priorlatent distribution. It forces the laìtent distribution to approximiate
+        a gaussian distribution. 
+        
+        Adding this term the latent distribution becomes continous and it is regularized.
+        Regularized as by forcing a gaussian distribution there won't be extreme values.
+        
+        Args:
+            data: the input data we want measure how much the VAE is able to reproduce correctly 
+        """
         z_mean, z_log_var, z = self.encoder(data)
         reconstruction = self.decoder(z)
         reconstruction_loss = tf.reduce_mean(keras.losses.binary_crossentropy(data, reconstruction))
@@ -91,19 +111,6 @@ class VariationalAutoEncoder(NeuralNet_AnomalyDetection):
         kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
         kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
         return reconstruction_loss + kl_loss
-
-    def train_step(self, data):
-        
-        with tf.GradientTape() as tape:
-            total_loss = self.vae_loss(data)
-        
-        #apply the gradient to the optimizer to improve the model
-        grads = tape.gradient(total_loss, self.trainable_weights)
-        self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
-        self.total_loss_tracker.update_state(total_loss)
-
-        return {
-            "loss": self.total_loss_tracker.result(),}
     
 
     def grad(self, data): 
@@ -116,7 +123,7 @@ class VariationalAutoEncoder(NeuralNet_AnomalyDetection):
         return total_loss       
 
 
-    def train_manual(self, data, epochs, batch_size, validation_split=0.2):
+    def train(self, data, epochs, batch_size, validation_split=0.2):
                 
         # splitting the data into training and validation set
         x_train, x_val = train_test_split(data, test_size=validation_split)
@@ -140,7 +147,7 @@ class VariationalAutoEncoder(NeuralNet_AnomalyDetection):
             x_val = tf.convert_to_tensor(x_val)
             val_loss = self.vae_loss(x_val)
             print("Epoch: {}, Train Loss: {}, Val Loss: {}".format(
-                epoch, tf.reduce_mean(loss_value), tf.reduce_mean(val_loss)))
+                epoch+1, tf.reduce_mean(loss_value), tf.reduce_mean(val_loss)))
 
             # training loss and validation loss are concated in the epoch's loss
             epoch_loss.append(
@@ -153,14 +160,3 @@ class VariationalAutoEncoder(NeuralNet_AnomalyDetection):
 
         return epoch_loss, training_time
     
-    def train(self, data, epochs, batch_size, validation_split=0.2):
-
-        start_time = time.time()
-
-        history = self.fit(data, epochs=epochs, batch_size=batch_size, validation_split=validation_split)
-
-        #stop the timer and compute the difference between the start and end 
-        end_time = time.time()
-        training_time = end_time - start_time
-
-        return history, training_time

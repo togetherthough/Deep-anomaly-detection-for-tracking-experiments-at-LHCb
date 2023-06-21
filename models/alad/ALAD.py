@@ -117,15 +117,14 @@ class ALAD(NeuralNet_AnomalyDetection):
                      x_logit_real, x_logit_fake, z_logit_real, z_logit_fake):
         
 
-        #logits are correct 
-
+        #check if the logits are correct
         gen_loss_xz = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=tf.zeros_like(xz_fake), logits=xz_fake)
+                labels=tf.zeros_like(xz_fake), logits=xz_true)
         )  
         enc_loss_xz = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
-                labels=tf.ones_like(xz_true), logits=xz_true)
+                labels=tf.ones_like(xz_true), logits=xz_fake)
         )
 
 
@@ -152,6 +151,8 @@ class ALAD(NeuralNet_AnomalyDetection):
 
     def train(self, train_data, epochs, batch_size, validation_split=None):
 
+
+        epoch_loss = []
         # Training loop
         for epoch in range(epochs):
             # Shuffle the training data
@@ -160,7 +161,6 @@ class ALAD(NeuralNet_AnomalyDetection):
             # Calculate the number of batches
             num_batches = len(train_data) // batch_size
 
-            epoch_loss = []
             start_time = time.time()
 
             for batch_index in range(num_batches):
@@ -237,15 +237,15 @@ class ALAD(NeuralNet_AnomalyDetection):
                 self.discriminator_zz_optimizer.apply_gradients(
                     zip(disc_zz_gradients, self.discriminator_zz.trainable_variables))
 
-            print("Epoch: {},  Encoder Loss: {}, Generator Loss: {}, Disc_xx Loss: {}, Disc_xz Loss: {}, Disc_zz Loss: {}".format(
-                epoch+1, tf.reduce_sum(enc_loss), tf.reduce_sum(gen_loss), tf.reduce_sum(disc_xx_loss), tf.reduce_sum(disc_xz_loss), tf.reduce_sum(disc_zz_loss)))
             
-            epoch_loss.append(
-                [tf.reduce_mean(gen_loss),  tf.reduce_mean(disc_xx_loss+disc_xz_loss+disc_zz_loss)])
+            epoch_loss.append([tf.reduce_mean(gen_loss),  tf.reduce_mean(disc_xx_loss+disc_xz_loss+disc_zz_loss)])
+            print("Epoch: {},  Encoder Loss: {}, Generator Loss: {}, Disc_xx Loss: {}, Disc_xz Loss: {}, Disc_zz Loss: {}".format(
+                epoch+1, tf.reduce_mean(enc_loss), tf.reduce_mean(gen_loss), tf.reduce_mean(disc_xx_loss), tf.reduce_mean(disc_xz_loss), tf.reduce_mean(disc_zz_loss)))          
             
         #stop the timer and compute the difference between the start and end 
         end_time = time.time()
         training_time = end_time - start_time
+        
 
         return epoch_loss, training_time
 
@@ -267,7 +267,7 @@ class ALAD(NeuralNet_AnomalyDetection):
 
     def find_anomalies(self, x_test, threshold):
         """"
-        This method makes predicitons in the forms of 1 or 0,
+        This method makes predictions in the forms of 1 or 0,
         if an instance is considered to be an anomaly its
         value will be 1, if is a normal instace its value will be 0.
         Whenever the determinant value (reconstruction error,
